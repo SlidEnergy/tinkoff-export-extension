@@ -1,0 +1,20 @@
+{
+  "manifest_version": 2,
+
+  "name": "Tinkoff csv export",
+  "version": "0.1",
+
+	"background": {
+		"scripts": ["background.js"]
+	},
+  "permissions": [
+    "cookies",
+    "https://api03.tinkoff.ru/*",
+    "*://*.tinkoff.ru/*",
+    "downloads"
+  ],
+  "browser_action": {
+    "default_icon": "icon.png",
+    "default_title": "Export csv file"
+  }
+}
