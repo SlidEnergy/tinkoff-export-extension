@@ -6,9 +6,28 @@ chrome.browserAction.onClicked.addListener(function() {
         const psid = cookie.value;
         
         const now = new Date();
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate()) - 1; // yesterday
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()) - (30 * 24 * 60 * 60 * 1000); // month ago
-        const url = `https://api07.tinkoff.ru/v1/export_operations/?format=csv&sessionid=${cookie.value}&start=${start}&end=${end}&account=5003116562&card=1001292280`;
+
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end.setSeconds(end.getSeconds() - 1); // yesterday
+
+        let start;
+
+        if(localStorage.getItem('lastDate')) {
+            let lastDate = new Date(localStorage.getItem('lastDate'));
+            lastDate.setDate(lastDate.getDate() + 1); // next day of last period
+            start = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+        }
+        else {
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            start.setMonth(start.getMonth()-1); // month ago
+        }
+
+        if(start > end) {
+            start = start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            start.setDate(start.getDate() - 1); // yesterday
+        }
+        
+        const url = `https://api07.tinkoff.ru/v1/export_operations/?format=csv&sessionid=${cookie.value}&start=${+start}&end=${+end}`;
 
         // Send requst for export operations to csv file
         var req = new XMLHttpRequest();
@@ -19,7 +38,9 @@ chrome.browserAction.onClicked.addListener(function() {
                 // Convert to Ynab csv import format
                 let ynabCSV = convertTinkoffCSVToYnabCSV(req.responseText);
 
-                saveFile(ynabCSV);
+                saveFile(ynabCSV, `ynab-${start.getDate()}_${start.getMonth() + 1}_${start.getFullYear()}-${end.getDate()}_${end.getMonth() + 1}_${end.getFullYear()}.csv`);
+
+                localStorage.setItem('lastDate', end);
             }
         };
         // Response from tinkoff always in windows-1251
@@ -66,15 +87,15 @@ function convertTinkoffDataRowToYnabDataRow(row) {
 
     // category
     let category = categories[row["Категория"]] || "";
+    category = descriptions[row["Описание"]] || category;
 
     // description
     description = row["Описание"];
-    description = descriptions[description] || row["Описание"];
     description += ' (' + row["Категория"] + ')';
 
     if(row["Статус"] == "OK")
         return { 
-            Date: `${date.getDate()}/${date.getMonth()}/${date.getFullYear()}`, 
+            Date: `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`, 
             Payee: "", 
             Category: category,
             Memo: description, 
@@ -121,11 +142,11 @@ let descriptions = {
     "Проценты на остаток по счету":"",
 }
 
-function saveFile(csv) {
+function saveFile(csv, filename) {
     var bb = new Blob([csv], {type: 'text/csv;charset=utf-8'});
 
     var a = document.createElement('a');
-    a.download = 'ynab.csv';
+    a.download = filename;
     a.href = window.URL.createObjectURL(bb);
     //a.dataset.downloadurl = ["text/csv;charset=utf-8", a.download, a.href].join(':');
   
