@@ -5,28 +5,19 @@ chrome.browserAction.onClicked.addListener(function() {
     chrome.cookies.get({"url": "https://www.tinkoff.ru", "name": "psid"}, function(cookie) {
         const psid = cookie.value;
         
-        const now = new Date();
-
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        end.setSeconds(end.getSeconds() - 1); // yesterday
+        const end = new Date();
 
         let start;
 
         if(localStorage.getItem('lastDate')) {
-            let lastDate = new Date(localStorage.getItem('lastDate'));
-            lastDate.setDate(lastDate.getDate() + 1); // next day of last period
-            start = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+            start = new Date(localStorage.getItem('lastDate'));
+            start.setSeconds(start.getSeconds() + 1); // next seconds of last period
         }
         else {
-            start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            start = new Date(end.getFullYear(), end.getMonth(), end.getDate());
             start.setMonth(start.getMonth()-1); // month ago
         }
 
-        if(start > end) {
-            start = start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            start.setDate(start.getDate() - 1); // yesterday
-        }
-        
         const url = `https://api07.tinkoff.ru/v1/export_operations/?format=csv&sessionid=${cookie.value}&start=${+start}&end=${+end}`;
 
         // Send requst for export operations to csv file
