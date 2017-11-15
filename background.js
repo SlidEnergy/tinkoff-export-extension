@@ -5,40 +5,51 @@ chrome.browserAction.onClicked.addListener(function() {
     chrome.cookies.get({"url": "https://www.tinkoff.ru", "name": "psid"}, function(cookie) {
         const psid = cookie.value;
         
-        const end = new Date();
-
-        let start;
-
-        if(localStorage.getItem('lastDate')) {
-            start = new Date(localStorage.getItem('lastDate'));
-            start.setSeconds(start.getSeconds() + 1); // next seconds of last period
-        }
-        else {
-            start = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-            start.setMonth(start.getMonth()-1); // month ago
-        }
-
-        const url = `https://api07.tinkoff.ru/v1/export_operations/?format=csv&sessionid=${cookie.value}&start=${+start}&end=${+end}`;
-
-        // Send requst for export operations to csv file
-        var req = new XMLHttpRequest();
-        req.open("GET", url, true);
-        req.onreadystatechange = function() {
-            if (req.readyState == 4 && req.status == 200) {
-              
-                // Convert to Ynab csv import format
-                let ynabCSV = convertTinkoffCSVToYnabCSV(req.responseText);
-
-                saveFile(ynabCSV, `ynab-${start.getDate()}_${start.getMonth() + 1}_${start.getFullYear()}-${end.getDate()}_${end.getMonth() + 1}_${end.getFullYear()}.csv`);
-
-                localStorage.setItem('lastDate', end);
-            }
-        };
-        // Response from tinkoff always in windows-1251
-        req.overrideMimeType('application/octet-stream;charset=windows-1251');
-        req.send();
+        download('card', localStorage.getItem('cardNumber'), psid);
     });
 });
+
+function download(cardName, cardNumber, psid) {
+    const end = new Date();
+    
+    let start;
+
+    if(localStorage.getItem('lastDate')) {
+        start = new Date(localStorage.getItem('lastDate'));
+        start.setSeconds(start.getSeconds() + 1); // next seconds of last period
+    }
+    else {
+        start = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        start.setMonth(start.getMonth()-1); // month ago
+    }
+
+    const url = `https://api07.tinkoff.ru/v1/export_operations/?format=csv&sessionid=${psid}&start=${+start}&end=${+end}&account=5003116562&card=${cardNumber}`;
+    let fileName = `${cardName}-${start.getDate()}_${start.getMonth() + 1}_${start.getFullYear()}-${end.getDate()}_${end.getMonth() + 1}_${end.getFullYear()}.csv`;
+
+    // Send requst for export operations to csv file
+    var req = new XMLHttpRequest();
+    req.open("GET", url, true);
+    req.onreadystatechange = function() {
+        if (req.readyState == 4 && req.status == 200) {
+            
+            // Convert to Ynab csv import format
+            let ynabCSV = convertTinkoffCSVToYnabCSV(req.responseText);
+
+            saveFile(ynabCSV, `ynab-${fileName}`);
+
+            localStorage.setItem('lastDate', end);
+        }
+    };
+    // Response from tinkoff always in windows-1251
+    req.overrideMimeType('application/octet-stream;charset=windows-1251');
+    req.send();
+
+    // Export operations in csv file into download folder
+    chrome.downloads.download({
+        url: url,
+        filename: `tinkoff-${fileName}`
+    });
+}
 
 function convertTinkoffCSVToYnabCSV(tinkoffCsv) {
     // Convert tinkoff csv export file to csv file for import to Ynab
@@ -84,10 +95,13 @@ function convertTinkoffDataRowToYnabDataRow(row) {
     description = row["Описание"];
     description += ' (' + row["Категория"] + ')';
 
+    // payee
+    let payee = payees[row["Описание"]] || "";
+
     if(row["Статус"] == "OK")
         return { 
             Date: `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`, 
-            Payee: "", 
+            Payee: payee, 
             Category: category,
             Memo: description, 
             Outflow: outflow, 
@@ -131,6 +145,10 @@ let descriptions = {
 
     "Вознаграждение за операции покупок":"",
     "Проценты на остаток по счету":"",
+}
+
+let payees = {
+    "Авто Ипотека Сбербанк": "Сбербанк"
 }
 
 function saveFile(csv, filename) {
